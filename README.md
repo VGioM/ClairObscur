@@ -3,6 +3,8 @@
 Passe le Mac en mode clair ou sombre aux heures que vous choisissez, au lieu du
 coucher de soleil imposé par l'option « Auto » de macOS.
 
+<p align="center"><img src="docs/capture.png" width="420" alt="Fenêtre de ClairObscur"></p>
+
 ```bash
 ./install.sh        # compile et copie dans /Applications
 open /Applications/ClairObscur.app
