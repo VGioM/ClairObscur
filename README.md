@@ -48,3 +48,11 @@ Journal : `~/Library/Logs/ClairObscur.log`.
 ## Icône
 
 `Resources/AppIcon.icns` est générée par `swift tools/make-icon.swift`.
+
+---
+
+## Linux (KDE Plasma)
+
+Une version Linux native (AppImage) se trouve dans [`linux/`](linux/README.md),
+sur la branche `linux`. Téléchargez `ClairObscur-X.Y.Z-linux-x86_64.AppImage`
+dans les [releases](https://github.com/VGioM/ClairObscur/releases).

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ClairObscur
+Comment=Choisir l'heure du passage du thème clair au thème sombre
+Exec=clairobscur
+Icon=clairobscur
+Categories=Settings;DesktopSettings;
+StartupWMClass=clairobscur
+Terminal=false

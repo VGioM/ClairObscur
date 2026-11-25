@@ -1,0 +1,68 @@
+#!/bin/bash
+# Construit l'AppImage Linux et la publie dans les releases GitHub, à côté des
+# zips macOS (qui ne sont jamais touchés).
+#
+#   ./release-linux.sh            version lue dans Cargo.toml
+#   ./release-linux.sh 1.4.0      version donnée : Cargo.toml est mis à jour
+#
+# Mac et Linux partagent les releases du dépôt mais pas forcément leurs numéros :
+# si la release vX.Y.Z existe (une version Mac du même numéro), l'AppImage y est
+# ajoutée ; sinon une release Linux seule est créée.
+#
+# Le fichier ajouté s'appelle ClairObscur-X.Y.Z-linux-x86_64.AppImage ; la
+# version Mac l'ignore. Une AppImage déjà présente sous ce nom est remplacée.
+#
+# Se lance depuis le système : la construction passe par le conteneur distrobox
+# « rustbuild » s'il existe (voir README.md), sinon sur place (Fedora). gh doit
+# être connecté. RELEASE_NOTES remplace le texte d'une release Linux seule.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+NAME="ClairObscur"
+REPO="VGioM/ClairObscur"
+
+VERSION="${1:-$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)}"
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "usage : ./release-linux.sh [X.Y.Z]"; exit 1; }
+TAG="v$VERSION"
+FILE="dist/$NAME-$VERSION-linux-x86_64.AppImage"
+
+echo "▸ Version $VERSION…"
+sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
+
+rm -rf dist
+if [ -z "${CONTAINER_ID:-}" ] && command -v distrobox >/dev/null && distrobox list 2>/dev/null | grep -q ' rustbuild '; then
+    distrobox enter rustbuild -- bash -lc "export PATH=\$HOME/.cargo/bin:\$PATH; cd '$PWD' && ./build-appimage.sh"
+else
+    ./build-appimage.sh
+fi
+[ -f "$FILE" ] || { echo "✗ $FILE introuvable."; exit 1; }
+
+if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
+    echo "▸ Ajout à la release $TAG…"
+    gh release upload "$TAG" "$FILE" -R "$REPO" --clobber
+else
+    echo "▸ Release Linux $TAG…"
+    git push -q origin HEAD
+    # Pas « Latest » : la mise à jour Mac ne lit que celle-là, et n'y trouverait pas son zip.
+    # La version Linux, elle, parcourt toutes les releases.
+    gh release create "$TAG" "$FILE" -R "$REPO" --target "$(git rev-parse HEAD)" --title "$NAME $VERSION" --latest=false \
+        --notes "${RELEASE_NOTES:-Version Linux uniquement : rien ne change pour la version Mac.}"
+fi
+
+# La section Linux des notes : remplacée si elle existe, ajoutée sinon.
+NOTES="$(gh release view "$TAG" -R "$REPO" --json body -q .body)"
+TMP_NOTES="$(mktemp)"
+{
+    awk '/^## Linux/{skip=1; next} skip && /^## /{skip=0} !skip' <<<"$NOTES" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}'
+    printf '\n'
+    cat <<DOC
+## Linux
+
+Téléchargez \`$NAME-$VERSION-linux-x86_64.AppImage\`, rendez-le exécutable (\`chmod +x\`, ou Propriétés → Autoriser l'exécution), puis lancez-le. Application native (Rust), sans Electron.
+
+**Configuration requise :** Linux x86_64 avec KDE Plasma 6 récent, celui qui sait passer seul d'un thème global clair à un sombre (Bazzite, Fedora KDE, Kubuntu, Arch…).
+DOC
+} > "$TMP_NOTES"
+gh release edit "$TAG" -R "$REPO" --notes-file "$TMP_NOTES"
+rm -f "$TMP_NOTES"
+echo "✓ $FILE ajouté à $NAME $VERSION"
